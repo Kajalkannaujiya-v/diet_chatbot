@@ -8,40 +8,50 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-
 load_dotenv()
 
-GROQ_API_KEY= os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 MONGO_URI = os.getenv("MONGO_URI")
 
-print("Mongo URI:", MONGO_URI)  # TEMP DEBUG
+app = FastAPI()
 
+# ✅ Proper CORS setup
+origins = [
+    "http://localhost:5173",
+    "https://kk-chatbot.onrender.com"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# MongoDB
 client = MongoClient(MONGO_URI)
 db = client["chat"]
 collection = db["users"]
-
-app = FastAPI()
 
 class ChatRequest(BaseModel):
     user_id: str
     question: str
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-    
-)
-
+# Prompt
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a fitness bot, tell me the ans with respect to the fitness things."),
+    ("system", "You are a helpful AI assistant."),
     ("placeholder", "{history}"),
     ("user", "{question}")
 ])
 
-llm = ChatGroq(api_key=GROQ_API_KEY, model="llama3-8b-8192")
+llm = ChatGroq(
+    api_key=GROQ_API_KEY,
+    model="llama3-8b-8192"
+)
+
 chain = prompt | llm
+
 
 def get_history(user_id):
     chats = collection.find({"user_id": user_id}).sort("timestamp", 1)
@@ -52,31 +62,36 @@ def get_history(user_id):
 
     return history
 
-@app.get("/")  
+
+@app.get("/")
 def home():
-    return {"message": "Welcome to the Diet Specialist ChatBot API!"}
+    return {"message": "AI Assistant API Running 🚀"}
+
 
 @app.post("/chat")
-def chat(request:ChatRequest):
-     history = get_history(request.user_id)
-     response = chain.invoke({
+def chat(request: ChatRequest):
+
+    history = get_history(request.user_id)
+
+    response = chain.invoke({
         "history": history,
         "question": request.question
     })
-     collection.insert_one({
+
+    # save user message
+    collection.insert_one({
         "user_id": request.user_id,
         "role": "user",
         "message": request.question,
         "timestamp": datetime.now(timezone.utc)
     })
 
-     collection.insert_one({
+    # save assistant message
+    collection.insert_one({
         "user_id": request.user_id,
         "role": "assistant",
         "message": response.content,
         "timestamp": datetime.now(timezone.utc)
     })
-     
-     return {"response": response.content}
-     
-    
+
+    return {"response": response.content}
