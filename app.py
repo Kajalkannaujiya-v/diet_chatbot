@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+
 load_dotenv()
 
 GROQ_API_KEY= os.getenv("GROQ_API_KEY")
@@ -30,7 +31,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True
+    
 )
 
 prompt = ChatPromptTemplate.from_messages([
@@ -39,7 +40,7 @@ prompt = ChatPromptTemplate.from_messages([
     ("user", "{question}")
 ])
 
-llm = ChatGroq(api_key=GROQ_API_KEY, model="openai/gpt-oss-20b")
+llm = ChatGroq(api_key=GROQ_API_KEY, model="llama3-8b-8192")
 chain = prompt | llm
 
 def get_history(user_id):
